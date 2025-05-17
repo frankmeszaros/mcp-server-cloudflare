@@ -14,12 +14,12 @@ const config = {
 		{
 			label: 'Sentry types that are compatible with toucan-js',
 			dependencies: ['@sentry/types', '@sentry/tracing'],
-			pinVersion: '7.76.0',
+			pinVersion: '8.9.2',
 		},
 		{
 			label: 'toucan-js that is compatible with pinned sentry types',
 			dependencies: ['toucan-js'],
-			pinVersion: '3.3.1',
+			pinVersion: '4.1.1',
 		},
 		{
 			label: 'pin vitest compatible with @cloudflare/vitest-pool-workers',
@@ -44,6 +44,12 @@ const config = {
 			],
 			// snapTo removes it from syncpack update list, which is the main goal
 			snapTo: ['@repo/eslint-config'],
+		},
+		{
+			label: 'use zod v4 in packages/tools',
+			dependencies: ['zod'],
+			pinVersion: '4.0.0-beta.20250505T195954',
+			packages: ['@repo/tools'],
 		},
 	],
 	semverGroups: [

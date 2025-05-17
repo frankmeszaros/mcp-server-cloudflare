@@ -1,8 +1,19 @@
 import { Cloudflare } from 'cloudflare'
+import { env } from 'cloudflare:workers'
 
 import type { z } from 'zod'
 
 export function getCloudflareClient(apiToken: string) {
+	// @ts-expect-error We don't have actual env in this package
+	if (env.DEV_DISABLE_OAUTH) {
+		return new Cloudflare({
+			// @ts-expect-error We don't have actual env in this package, but we know this is defined because the initial Oauth handshake will fail without it
+			apiEmail: env.DEV_CLOUDFLARE_EMAIL,
+			// @ts-expect-error We don't have actual env in this package, but we know this is defined because the initial Oauth handshake will fail without it
+			apiKey: env.DEV_CLOUDFLARE_API_TOKEN,
+		})
+	}
+
 	return new Cloudflare({ apiToken })
 }
 
@@ -29,6 +40,16 @@ export async function fetchCloudflareApi<T>({
 }): Promise<T> {
 	const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}${endpoint}`
 
+	// @ts-expect-error We don't have actual env in this package
+	if (env.DEV_DISABLE_OAUTH) {
+		options.headers = {
+			...options.headers,
+			// @ts-expect-error We don't have actual env in this package
+			'X-Auth-Email': env.DEV_CLOUDFLARE_EMAIL,
+			// @ts-expect-error We don't have actual env in this package
+			'X-Auth-Key': env.DEV_CLOUDFLARE_API_TOKEN,
+		}
+	}
 	const response = await fetch(url, {
 		...options,
 		headers: {

@@ -1,59 +1,63 @@
-# Use an official Ubuntu as a base image
-FROM ubuntu:20.04
+# Use Alpine as base for minimal size
+FROM alpine:3.19 as base
 
-# Set non-interactive mode to avoid prompts during package installation
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Use bash for the shell
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# Update and install useful CLI utilities
-RUN apt-get update && apt-get install -y \
-    curl \
+# Install necessary packages while minimizing layers
+# We combine commands with && and clean cache in the same layer
+# to reduce the image size
+RUN apk update && \
+    apk add --no-cache \
+    # Core utilities
     git \
-    htop \
-    vim \
+    curl \
     wget \
-    net-tools \
-    build-essential \
-    nmap \
-    sudo \
-    ca-certificates \
-    lsb-release \
-    nodejs \
-    npm \
+    # Build essentials
+    build-base \
+    # Python and pip
     python3 \
-    python3-pip \
-    && apt-get clean
+    py3-pip \
+    # Node and npm
+    nodejs \
+    npm && \
+    # Clean up the cache to reduce image size
+    rm -rf /var/cache/apk/* && \
+    # Create symlink for python
+    ln -sf /usr/bin/python3 /usr/bin/python
 
-RUN pip3 install matplotlib numpy pandas
+# Install pnpm in a separate layer for better caching
+RUN npm install -g pnpm && \
+    rm -rf /root/.npm
 
-# Install Node.js and Corepack
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && corepack enable
-
-# ENV NODE_VERSION 22.14.0
-
-# Download and install nvm
-# RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | PROFILE="${BASH_ENV}" bash
-# RUN echo node > .nvmrc
-# RUN nvm install $NODE_VERSION
-# RUN nvm use $NODE_VERSION
+# Set up pnpm environment
+ENV PNPM_HOME=/usr/local/bin
+ENV PATH=$PNPM_HOME:$PATH
 
 # Set working directory
 WORKDIR /app
 
+# Set environment variables
+ENV PATH="/app/node_modules/.bin:${PATH}"
+
+###
+# STAGE: PRUNE -  Generate a partial monorepo for the sandbox-container app. The output will be placed into a directory named "out"
+###
+FROM base AS prune
+WORKDIR /app
+RUN pnpm install turbo --global
+COPY . .
+RUN turbo prune containers-starter
+
+###
+# STAGE: INSTALL & RUN
+###
+FROM base AS installer
+WORKDIR /app
+
+COPY --from=prune /app/out/ .
+RUN pnpm install --frozen-lockfile --only=production
+
+WORKDIR /app/apps/sandbox-container
+
 # Expose the port your Node.js server will run on
 EXPOSE 8080
 
-COPY . ./
-
-RUN npm i
-
-# add node and npm to path so the commands are available
-# ENV NODE_PATH $NVM_DIR/v$NODE_VERSION/lib/node_modules
-# ENV PATH $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
-
-# Default command (run your Node.js server here)
-CMD ["npm", "run", "start:container"]
+CMD ["pnpm", "run", "start:container"]
