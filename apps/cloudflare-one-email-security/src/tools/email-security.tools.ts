@@ -1,3 +1,4 @@
+import { InvestigateListParams } from 'cloudflare/resources/email-security.mjs'
 import { z } from 'zod'
 
 import { withAccountCheck } from '@repo/mcp-common/src/api/account.api'
@@ -12,13 +13,15 @@ const searchQueryParam = z
 	.string()
 	.optional()
 	.describe(
-		"Space-delimited search terms used to filter email messages. Matches various metadata fields such as subject, sender, hashes, etc. If omitted, all messages are returned."
+		'Space-delimited search terms used to filter email messages. Matches various metadata fields such as subject, sender, hashes, etc. If omitted, all messages are returned.'
 	)
 
 const startParam = z
 	.string()
 	.optional()
-	.describe('ISO 8601 datetime string marking beginning of search range. Defaults to 30 days ago if omitted.')
+	.describe(
+		'ISO 8601 datetime string marking beginning of search range. Defaults to 30 days ago if omitted.'
+	)
 
 const endParam = z
 	.string()
@@ -46,14 +49,7 @@ const senderParam = z.string().optional().describe('Filter by sender email')
 
 // Enumerations
 const finalDispositionParam = z
-	.enum([
-		'MALICIOUS',
-		'MALICIOUS-BEC',
-		'SUSPICIOUS',
-		'SPOOF',
-		'BENIGN',
-		'UNKNOWN',
-	])
+	.enum(['MALICIOUS', 'MALICIOUS-BEC', 'SUSPICIOUS', 'SPOOF', 'BENIGN', 'UNKNOWN'])
 	.optional()
 	.describe('Filter by final disposition')
 
@@ -147,7 +143,7 @@ export function registerEmailSecurityTools(agent: EmailSecurityMCP) {
 				const accountId = await agent.getActiveAccountId()
 				const client = getCloudflareClient(agent.props.accessToken)
 
-				const params: any = { account_id: accountId }
+				const params: InvestigateListParams = { account_id: accountId || '' }
 				if (query) params.query = query
 				if (start) params.start = start
 				if (end) params.end = end
@@ -155,7 +151,9 @@ export function registerEmailSecurityTools(agent: EmailSecurityMCP) {
 				if (alertId) params.alert_id = alertId
 				if (detectionsOnly !== undefined) params.detections_only = detectionsOnly
 				if (domain) params.domain = domain
+				// @ts-ignore
 				if (finalDisposition) params.final_disposition = finalDisposition
+				// @ts-ignore
 				if (messageAction) params.message_action = messageAction
 				if (messageId) params.message_id = messageId
 				if (metric) params.metric = metric
@@ -164,11 +162,11 @@ export function registerEmailSecurityTools(agent: EmailSecurityMCP) {
 				if (recipient) params.recipient = recipient
 				if (sender) params.sender = sender
 
-				const messages: any[] = []
 				try {
-					for await (const item of client.emailSecurity.investigate.list(params)) {
-						messages.push(item)
-					}
+					const { result, result_info: resultInfo } =
+						await client.emailSecurity.investigate.list(params)
+
+					return { result, resultInfo }
 				} catch (error) {
 					return {
 						error:
@@ -176,11 +174,6 @@ export function registerEmailSecurityTools(agent: EmailSecurityMCP) {
 								? error.message
 								: 'Unknown error occurred while fetching messages',
 					}
-				}
-
-				return {
-					messagesCount: messages.length,
-					messages,
 				}
 			}
 		)
