@@ -88,7 +88,7 @@ const AssetSchema = z.object({
 	id: z.string().uuid(),
 	external_id: z.string(),
 	name: z.string(),
-	link: z.string().url(),
+	link: z.string().nullable(),
 	fields: z.array(AssetFieldSchema),
 	category: CategorySchema,
 })
