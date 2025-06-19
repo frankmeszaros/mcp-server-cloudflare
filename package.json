@@ -21,9 +21,7 @@
 		"test:watch": "vitest",
 		"eval:ci": "run-turbo eval:ci",
 		"eval:dev": "run-turbo eval:dev",
-		"update-deps": "syncpack update",
-		"dev:cf1": "pm2 start ecosystem.config.cjs",
-		"stop:cf1": "pm2 stop ecosystem.config.cjs"
+		"update-deps": "syncpack update"
 	},
 	"devDependencies": {
 		"@changesets/cli": "2.28.1",
