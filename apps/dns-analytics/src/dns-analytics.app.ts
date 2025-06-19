@@ -1,11 +1,11 @@
 import OAuthProvider from '@cloudflare/workers-oauth-provider'
 import { McpAgent } from 'agents/mcp'
 
+import { handleApiTokenMode, isApiTokenRequest } from '@repo/mcp-common/src/api-token-mode'
 import {
 	createAuthHandlers,
 	handleTokenExchangeCallback,
 } from '@repo/mcp-common/src/cloudflare-oauth-handler'
-import { handleDevMode } from '@repo/mcp-common/src/dev-mode'
 import { getUserDetails, UserDetails } from '@repo/mcp-common/src/durable-objects/user_details.do'
 import { getEnv } from '@repo/mcp-common/src/env'
 import { RequiredScopes } from '@repo/mcp-common/src/scopes'
@@ -53,8 +53,11 @@ export class DNSAnalyticsMCP extends McpAgent<Env, State, Props> {
 	}
 
 	async init() {
+		// TODO: Probably we'll want to track account tokens usage through an account identifier at some point
+		const userId = this.props.type === 'user_token' ? this.props.user.id : undefined
+
 		this.server = new CloudflareMCPServer({
-			userId: this.props.user.id,
+			userId,
 			wae: this.env.MCP_METRICS,
 			serverInfo: {
 				name: this.env.MCP_SERVER_NAME,
@@ -72,6 +75,10 @@ export class DNSAnalyticsMCP extends McpAgent<Env, State, Props> {
 
 	async getActiveAccountId() {
 		try {
+			// account tokens are scoped to one account
+			if (this.props.type === 'account_token') {
+				return this.props.account.id
+			}
 			// Get UserDetails Durable Object based off the userId and retrieve the activeAccountId from it
 			// we do this so we can persist activeAccountId across sessions
 			const userDetails = getUserDetails(env, this.props.user.id)
@@ -84,6 +91,10 @@ export class DNSAnalyticsMCP extends McpAgent<Env, State, Props> {
 
 	async setActiveAccountId(accountId: string) {
 		try {
+			// account tokens are scoped to one account
+			if (this.props.type === 'account_token') {
+				return
+			}
 			const userDetails = getUserDetails(env, this.props.user.id)
 			await userDetails.setActiveAccountId(accountId)
 		} catch (e) {
@@ -102,8 +113,8 @@ const AnalyticsScopes = {
 
 export default {
 	fetch: async (req: Request, env: Env, ctx: ExecutionContext) => {
-		if (env.ENVIRONMENT === 'development' && env.DEV_DISABLE_OAUTH === 'true') {
-			return await handleDevMode(DNSAnalyticsMCP, req, env, ctx)
+		if (await isApiTokenRequest(req, env)) {
+			return await handleApiTokenMode(DNSAnalyticsMCP, req, env, ctx)
 		}
 
 		return new OAuthProvider({

@@ -2,7 +2,7 @@
 
 Model Context Protocol (MCP) is a [new, standardized protocol](https://modelcontextprotocol.io/introduction) for managing context between large language models (LLMs) and external systems. In this repository, you can find several MCP servers allowing you to connect to Cloudflare's service from an MCP client (e.g. Cursor, Claude) and use natural language to accomplish tasks through your Cloudflare account.
 
-These MCP servers allow your [MCP Client](https://modelcontextprotocol.io/clients) to read configurations from your account, process information, make suggestions based on data, and even make those suggested changes for you. All of these actions can happen across cloudflare's many services including application development, security and performance.
+These MCP servers allow your [MCP Client](https://modelcontextprotocol.io/clients) to read configurations from your account, process information, make suggestions based on data, and even make those suggested changes for you. All of these actions can happen across Cloudflare's many services including application development, security and performance.
 
 The following servers are included in this repository:
 
@@ -44,6 +44,14 @@ If your client does not yet support remote MCP servers, you will need to set up 
 	}
 }
 ```
+
+## Using Cloudflare's MCP servers from the OpenAI Responses API
+
+To use one of Cloudflare's MCP servers with [OpenAI's responses API](https://openai.com/index/new-tools-and-features-in-the-responses-api/), you will need to provide the Responses API with an API token that has the scopes (permissions) required for that particular MCP server.
+
+For example, to use the [Browser Rendering MCP server](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/browser-rendering) with OpenAI, create an API token in the Cloudflare dashboard [here](https://dash.cloudflare.com/profile/api-tokens), with the following permissions:
+
+<img width="937" alt="Screenshot 2025-05-21 at 10 38 02 AM" src="https://github.com/user-attachments/assets/872e253f-23ce-43b3-983c-45f9d0f66100" />
 
 ## Need access to more Cloudflare tools?
 

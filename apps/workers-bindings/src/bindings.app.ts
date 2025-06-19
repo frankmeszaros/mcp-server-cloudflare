@@ -1,17 +1,19 @@
 import OAuthProvider from '@cloudflare/workers-oauth-provider'
 import { McpAgent } from 'agents/mcp'
 
+import { handleApiTokenMode, isApiTokenRequest } from '@repo/mcp-common/src/api-token-mode'
 import {
 	createAuthHandlers,
 	handleTokenExchangeCallback,
 } from '@repo/mcp-common/src/cloudflare-oauth-handler'
-import { handleDevMode } from '@repo/mcp-common/src/dev-mode'
 import { getUserDetails, UserDetails } from '@repo/mcp-common/src/durable-objects/user_details.do'
 import { getEnv } from '@repo/mcp-common/src/env'
+import { registerPrompts } from '@repo/mcp-common/src/prompts/docs-vectorize.prompts'
 import { RequiredScopes } from '@repo/mcp-common/src/scopes'
 import { CloudflareMCPServer } from '@repo/mcp-common/src/server'
 import { registerAccountTools } from '@repo/mcp-common/src/tools/account.tools'
 import { registerD1Tools } from '@repo/mcp-common/src/tools/d1.tools'
+import { registerDocsTools } from '@repo/mcp-common/src/tools/docs-vectorize.tools'
 import { registerHyperdriveTools } from '@repo/mcp-common/src/tools/hyperdrive.tools'
 import { registerKVTools } from '@repo/mcp-common/src/tools/kv_namespace.tools'
 import { registerR2BucketTools } from '@repo/mcp-common/src/tools/r2_bucket.tools'
@@ -59,8 +61,11 @@ export class WorkersBindingsMCP extends McpAgent<Env, WorkersBindingsMCPState, P
 	}
 
 	async init() {
+		// TODO: Probably we'll want to track account tokens usage through an account identifier at some point
+		const userId = this.props.type === 'user_token' ? this.props.user.id : undefined
+
 		this.server = new CloudflareMCPServer({
-			userId: this.props.user.id,
+			userId,
 			wae: this.env.MCP_METRICS,
 			serverInfo: {
 				name: this.env.MCP_SERVER_NAME,
@@ -74,10 +79,18 @@ export class WorkersBindingsMCP extends McpAgent<Env, WorkersBindingsMCPState, P
 		registerR2BucketTools(this)
 		registerD1Tools(this)
 		registerHyperdriveTools(this)
+
+		// Add docs tools
+		registerDocsTools(this, this.env)
+		registerPrompts(this)
 	}
 
 	async getActiveAccountId() {
 		try {
+			// account tokens are scoped to one account
+			if (this.props.type === 'account_token') {
+				return this.props.account.id
+			}
 			// Get UserDetails Durable Object based off the userId and retrieve the activeAccountId from it
 			// we do this so we can persist activeAccountId across sessions
 			const userDetails = getUserDetails(env, this.props.user.id)
@@ -90,6 +103,10 @@ export class WorkersBindingsMCP extends McpAgent<Env, WorkersBindingsMCPState, P
 
 	async setActiveAccountId(accountId: string) {
 		try {
+			// account tokens are scoped to one account
+			if (this.props.type === 'account_token') {
+				return
+			}
 			const userDetails = getUserDetails(env, this.props.user.id)
 			await userDetails.setActiveAccountId(accountId)
 		} catch (e) {
@@ -108,11 +125,9 @@ const BindingsScopes = {
 
 export default {
 	fetch: async (req: Request, env: Env, ctx: ExecutionContext) => {
-		if (
-			(env.ENVIRONMENT === 'development' || env.ENVIRONMENT === 'test') &&
-			env.DEV_DISABLE_OAUTH === 'true'
-		) {
-			return await handleDevMode(WorkersBindingsMCP, req, env, ctx)
+		if (await isApiTokenRequest(req, env)) {
+			console.log('is token mode')
+			return await handleApiTokenMode(WorkersBindingsMCP, req, env, ctx)
 		}
 
 		return new OAuthProvider({

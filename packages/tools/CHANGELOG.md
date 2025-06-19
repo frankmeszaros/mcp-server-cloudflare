@@ -1,5 +1,21 @@
 # @repo/tools
 
+## 0.33.0
+
+### Minor Changes
+
+- 6cf52a6: Support AOT tokens
+
+### Patch Changes
+
+- 0fc4439: Update agents and modelcontext dependencies
+
+## 0.32.1
+
+### Patch Changes
+
+- 86c2e4f: Add API token passthrough auth
+
 ## 0.32.0
 
 ### Minor Changes

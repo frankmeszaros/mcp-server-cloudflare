@@ -1,17 +1,19 @@
 import OAuthProvider from '@cloudflare/workers-oauth-provider'
 import { McpAgent } from 'agents/mcp'
 
+import { handleApiTokenMode, isApiTokenRequest } from '@repo/mcp-common/src/api-token-mode'
 import {
 	createAuthHandlers,
 	handleTokenExchangeCallback,
 } from '@repo/mcp-common/src/cloudflare-oauth-handler'
-import { handleDevMode } from '@repo/mcp-common/src/dev-mode'
 import { getUserDetails, UserDetails } from '@repo/mcp-common/src/durable-objects/user_details.do'
 import { getEnv } from '@repo/mcp-common/src/env'
+import { registerPrompts } from '@repo/mcp-common/src/prompts/docs-vectorize.prompts'
 import { RequiredScopes } from '@repo/mcp-common/src/scopes'
 import { initSentryWithUser } from '@repo/mcp-common/src/sentry'
 import { CloudflareMCPServer } from '@repo/mcp-common/src/server'
 import { registerAccountTools } from '@repo/mcp-common/src/tools/account.tools'
+import { registerDocsTools } from '@repo/mcp-common/src/tools/docs-vectorize.tools'
 import { registerWorkersTools } from '@repo/mcp-common/src/tools/worker.tools'
 
 import { MetricsTracker } from '../../../packages/mcp-observability/src'
@@ -49,14 +51,21 @@ export class ObservabilityMCP extends McpAgent<Env, State, Props> {
 	}
 
 	async init() {
+		// TODO: Probably we'll want to track account tokens usage through an account identifier at some point
+		const userId = this.props.type === 'user_token' ? this.props.user.id : undefined
+		const sentry =
+			this.props.type === 'user_token'
+				? initSentryWithUser(env, this.ctx, this.props.user.id)
+				: undefined
+
 		this.server = new CloudflareMCPServer({
-			userId: this.props.user.id,
+			userId,
 			wae: this.env.MCP_METRICS,
 			serverInfo: {
 				name: this.env.MCP_SERVER_NAME,
 				version: this.env.MCP_SERVER_VERSION,
 			},
-			sentry: initSentryWithUser(env, this.ctx, this.props.user.id),
+			sentry,
 			options: {
 				instructions: `# Cloudflare Workers Observability Tool
 				* A cloudflare worker is a serverless function
@@ -76,10 +85,18 @@ export class ObservabilityMCP extends McpAgent<Env, State, Props> {
 
 		// Register Cloudflare Workers logs tools
 		registerObservabilityTools(this)
+
+		// Add docs tools
+		registerDocsTools(this, this.env)
+		registerPrompts(this)
 	}
 
 	async getActiveAccountId() {
 		try {
+			// account tokens are scoped to one account
+			if (this.props.type === 'account_token') {
+				return this.props.account.id
+			}
 			// Get UserDetails Durable Object based off the userId and retrieve the activeAccountId from it
 			// we do this so we can persist activeAccountId across sessions
 			const userDetails = getUserDetails(env, this.props.user.id)
@@ -92,6 +109,10 @@ export class ObservabilityMCP extends McpAgent<Env, State, Props> {
 
 	async setActiveAccountId(accountId: string) {
 		try {
+			// account tokens are scoped to one account
+			if (this.props.type === 'account_token') {
+				return
+			}
 			const userDetails = getUserDetails(env, this.props.user.id)
 			await userDetails.setActiveAccountId(accountId)
 		} catch (e) {
@@ -103,15 +124,15 @@ export class ObservabilityMCP extends McpAgent<Env, State, Props> {
 const ObservabilityScopes = {
 	...RequiredScopes,
 	'account:read': 'See your account info such as account details, analytics, and memberships.',
-	'workers:write':
+	'workers:read':
 		'See and change Cloudflare Workers data such as zones, KV storage, namespaces, scripts, and routes.',
 	'workers_observability:read': 'See observability logs for your account',
 } as const
 
 export default {
 	fetch: async (req: Request, env: Env, ctx: ExecutionContext) => {
-		if (env.ENVIRONMENT === 'development' && env.DEV_DISABLE_OAUTH === 'true') {
-			return await handleDevMode(ObservabilityMCP, req, env, ctx)
+		if (await isApiTokenRequest(req, env)) {
+			return await handleApiTokenMode(ObservabilityMCP, req, env, ctx)
 		}
 
 		return new OAuthProvider({

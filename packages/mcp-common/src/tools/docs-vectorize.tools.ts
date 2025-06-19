@@ -1,6 +1,11 @@
 import { z } from 'zod'
 
-import type { CloudflareDocumentationMCP } from '../docs-vectorize.app'
+import type { CloudflareMcpAgentNoAccount } from '../types/cloudflare-mcp-agent.types'
+
+interface RequiredEnv {
+	AI: Ai
+	VECTORIZE: VectorizeIndex
+}
 
 // Always return 10 results for simplicity, don't make it configurable
 const TOP_K = 10
@@ -9,8 +14,7 @@ const TOP_K = 10
  * Registers the docs search tool with the MCP server
  * @param agent The MCP server instance
  */
-export function registerDocsTools(agent: CloudflareDocumentationMCP) {
-	// Register the worker logs analysis tool by worker name
+export function registerDocsTools(agent: CloudflareMcpAgentNoAccount, env: RequiredEnv) {
 	agent.server.tool(
 		'search_cloudflare_documentation',
 		`Search the Cloudflare documentation.
@@ -27,7 +31,7 @@ export function registerDocsTools(agent: CloudflareDocumentationMCP) {
 			query: z.string(),
 		},
 		async ({ query }) => {
-			const results = await queryVectorize(agent.env.AI, agent.env.VECTORIZE, query, TOP_K)
+			const results = await queryVectorize(env.AI, env.VECTORIZE, query, TOP_K)
 			const resultsAsXml = results
 				.map((result) => {
 					return `<result>
@@ -40,6 +44,36 @@ ${result.text}
 				.join('\n')
 			return {
 				content: [{ type: 'text', text: resultsAsXml }],
+			}
+		}
+	)
+
+	// Note: this is a tool instead of a prompt because
+	// prompt support is much less common than tools.
+	agent.server.tool(
+		'migrate_pages_to_workers_guide',
+		`ALWAYS read this guide before migrating Pages projects to Workers.`,
+		async () => {
+			const res = await fetch(
+				'https://developers.cloudflare.com/workers/prompts/pages-to-workers.txt',
+				{
+					cf: { cacheEverything: true, cacheTtl: 3600 },
+				}
+			)
+
+			if (!res.ok) {
+				return {
+					content: [{ type: 'text', text: 'Error: Failed to fetch guide. Please try again.' }],
+				}
+			}
+
+			return {
+				content: [
+					{
+						type: 'text',
+						text: await res.text(),
+					},
+				],
 			}
 		}
 	)
