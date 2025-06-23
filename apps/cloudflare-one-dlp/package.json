@@ -1,5 +1,5 @@
 {
-	"name": "cloudflare-one-gateway-mcp-server",
+	"name": "cloudflare-one-dlp-mcp-server",
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {

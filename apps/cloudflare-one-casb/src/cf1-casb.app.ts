@@ -15,6 +15,10 @@ import { registerAccountTools } from '@repo/mcp-common/src/tools/account.tools'
 import { MetricsTracker } from '../../../packages/mcp-observability/src'
 import { registerFindingsTools } from './tools/findings.tools'
 import { registerIntegrationsTools } from './tools/integrations.tools'
+import { registerZeroTrustGatewayTools } from './tools/gateway.tools'
+import { registerZeroTrustDLPTools } from './tools/dlp.tools'
+import { registerZeroTrustAccessTools } from './tools/access.tools'
+import { registerEmailSecurityTools } from './tools/email-security.tools'
 
 import type { AuthProps } from '@repo/mcp-common/src/cloudflare-oauth-handler'
 import type { Env } from './cf1-casb.context'
@@ -40,7 +44,7 @@ ONLY rely on \`posture_findings_remediation_guide_by_finding_type_id\` to determ
 
 ## Tools
 
-- posture_findings_remediation_guide_by_finding_type_id -- the core source of truth on how to fix findings. 
+- posture_findings_remediation_guide_by_finding_type_id -- the core source of truth on how to fix findings.
 - asset_categories_ prefixed tools are good for understanding what category IDs we can get to filter.
 - Example: "Tell me about frank" may consist of us looking at every asset_categories_by_type where we filter with 'user' type to see we have a few user categories (microsoft user, google workspace user, etc)
 `
@@ -91,6 +95,10 @@ export class CASBMCP extends McpAgent<Env, State, Props> {
 		registerAccountTools(this)
 		registerIntegrationsTools(this)
 		registerFindingsTools(this)
+		registerZeroTrustGatewayTools(this)
+		registerZeroTrustDLPTools(this)
+		registerZeroTrustAccessTools(this)
+		registerEmailSecurityTools(this)
 	}
 
 	async getActiveAccountId() {
